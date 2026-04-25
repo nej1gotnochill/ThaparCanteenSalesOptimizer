@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from config import Cols, MENU_PRICES
+from config import Cols, MENU_PRICES, OUTPUT_DIR
 from data_loader import load_data
 from features import build_daily_features
 from model import SalesPredictor, time_aware_split
+from visualization import (
+    plot_actual_vs_predicted,
+    plot_feature_importances,
+    plot_residuals,
+    plot_sales_over_time,
+)
 
 
 ITEM_PROFILES: dict[str, dict[str, Any]] = {
@@ -32,6 +39,33 @@ WASTE_COLORS = {
 }
 
 ORDER_STATUSES = ("Completed", "Pending", "Cancelled")
+
+VISUALIZATION_SPECS = (
+    {
+        "key": "salesOverTime",
+        "title": "Sales Over Time",
+        "description": "Daily revenue trend with rolling average.",
+        "filename": "sales_over_time.png",
+    },
+    {
+        "key": "actualVsPredicted",
+        "title": "Actual vs Predicted",
+        "description": "Model fit against held-out test data.",
+        "filename": "actual_vs_predicted.png",
+    },
+    {
+        "key": "residuals",
+        "title": "Residual Diagnostics",
+        "description": "Error spread and residual behavior.",
+        "filename": "residuals.png",
+    },
+    {
+        "key": "featureImportances",
+        "title": "Feature Importances",
+        "description": "Relative influence of model features.",
+        "filename": "feature_importances.png",
+    },
+)
 
 
 @lru_cache(maxsize=1)
@@ -100,6 +134,41 @@ def predict_next_day_sales(temperature: float | None = None) -> dict[str, Any]:
         "temperature": temperature,
         "model": type(predictor.regressor).__name__,
     }
+
+
+@lru_cache(maxsize=1)
+def get_visualization_assets() -> list[dict[str, str]]:
+    """Generate and return metadata for core dashboard visualizations."""
+    transaction_df = load_data()
+    daily_df = build_daily_features(transaction_df)
+    split = time_aware_split(daily_df)
+    predictor = SalesPredictor()
+    predictor.fit(split)
+
+    y_pred = predictor.predict(split.X_test)
+    n_test = len(split.X_test)
+    test_dates = daily_df[Cols.DATE].iloc[-n_test:].reset_index(drop=True)
+
+    plot_sales_over_time(daily_df)
+    plot_actual_vs_predicted(split.y_test, y_pred, test_dates)
+    plot_residuals(split.y_test, y_pred)
+    plot_feature_importances(predictor.feature_importances())
+
+    return [dict(spec) for spec in VISUALIZATION_SPECS]
+
+
+def get_visualization_file_path(filename: str) -> Path:
+    """Return an absolute path to a generated visualization file."""
+    assets = get_visualization_assets()
+    allowed = {item["filename"] for item in assets}
+    if filename not in allowed:
+        raise FileNotFoundError(filename)
+
+    path = OUTPUT_DIR / filename
+    if not path.exists():
+        get_visualization_assets.cache_clear()
+        get_visualization_assets()
+    return path
 
 
 def _build_analytics(transaction_df: pd.DataFrame, daily_df: pd.DataFrame) -> dict[str, Any]:

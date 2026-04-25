@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
-from dashboard_service import get_dashboard_snapshot, predict_next_day_sales
+from dashboard_service import (
+    get_dashboard_snapshot,
+    get_visualization_assets,
+    get_visualization_file_path,
+    predict_next_day_sales,
+)
 
 app = FastAPI(title="Thapar Canteen Dashboard API", version="1.0.0")
 
@@ -36,6 +42,20 @@ def dashboard() -> dict[str, object]:
 @app.get("/api/predict")
 def predict(temperature: float | None = None) -> dict[str, object]:
     return predict_next_day_sales(temperature=temperature)
+
+
+@app.get("/api/visualizations")
+def visualizations() -> dict[str, object]:
+    return {"items": get_visualization_assets()}
+
+
+@app.get("/api/visualizations/{filename}")
+def visualization_file(filename: str) -> FileResponse:
+    try:
+        path = get_visualization_file_path(filename)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Visualization not found") from exc
+    return FileResponse(path, media_type="image/png", filename=filename)
 
 
 if __name__ == "__main__":
