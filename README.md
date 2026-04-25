@@ -69,6 +69,32 @@ All charts are saved to the `outputs/` folder.
 
 ---
 
+## Frontend dashboard
+
+The frontend for this optimizer is Canteen Vision, and it lives in the workspace here:
+
+- Frontend folder: [canteen-vision](../canteen-vision)
+- App router: [src/router.tsx](../canteen-vision/src/router.tsx)
+- Landing page: [src/routes/index.tsx](../canteen-vision/src/routes/index.tsx)
+- Dashboard overview: [src/routes/dashboard.index.tsx](../canteen-vision/src/routes/dashboard.index.tsx)
+- Analytics page: [src/routes/dashboard.analytics.tsx](../canteen-vision/src/routes/dashboard.analytics.tsx)
+- Predictions page: [src/routes/dashboard.predictions.tsx](../canteen-vision/src/routes/dashboard.predictions.tsx)
+- Root layout: [src/routes/__root.tsx](../canteen-vision/src/routes/__root.tsx)
+
+### Run the frontend locally
+
+```bash
+cd ../canteen-vision
+npm install
+npm run dev
+```
+
+Default local URL (Vite): http://localhost:5173
+
+If you want to jump straight to the app files in this workspace, open [canteen-vision](../canteen-vision) and start with [src/router.tsx](../canteen-vision/src/router.tsx).
+
+---
+
 ## Swapping the model
 
 Open `main.py`, find `step_train`, and replace the constructor argument:
