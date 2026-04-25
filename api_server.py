@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,9 +11,12 @@ from dashboard_service import get_dashboard_snapshot, predict_next_day_sales
 
 app = FastAPI(title="Thapar Canteen Dashboard API", version="1.0.0")
 
+frontend_origin = os.getenv("FRONTEND_ORIGIN", "").strip()
+allow_origins = [frontend_origin] if frontend_origin else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

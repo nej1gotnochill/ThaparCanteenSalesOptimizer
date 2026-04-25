@@ -197,3 +197,25 @@ Everything else — split, evaluate, charts — works unchanged.
 
 - Python 3.10+
 - numpy, pandas, scikit-learn, matplotlib, seaborn
+
+---
+
+## Deploying on Render
+
+This backend is ready for Render as a Python web service.
+
+- Service root: [ThaparCanteenSalesOptimizer](.)
+- Blueprint config: [render.yaml](render.yaml)
+- App entry: [api_server.py](api_server.py)
+
+Render settings:
+
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn api_server:app --host 0.0.0.0 --port $PORT`
+- Health check path: `/api/health`
+
+Optional environment variable:
+
+- `FRONTEND_ORIGIN` = your deployed frontend URL, for example `https://your-frontend.onrender.com`
+
+After deployment, set `VITE_CANTEEN_API_URL` in the frontend to the Render backend URL.
