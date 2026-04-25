@@ -67,6 +67,16 @@ automatically — no manual data preparation needed.
 
 All charts are saved to the `outputs/` folder.
 
+## Running the backend API
+
+```bash
+python api_server.py
+```
+
+Health endpoint: http://127.0.0.1:8000/api/health
+
+Dashboard endpoint: http://127.0.0.1:8000/api/dashboard
+
 ---
 
 ## Frontend dashboard
@@ -89,7 +99,29 @@ npm install
 npm run dev
 ```
 
-Default local URL (Vite): http://localhost:5173
+Default local URL (Vite): http://localhost:8080
+
+The frontend reads the backend URL from `VITE_CANTEEN_API_URL` and defaults to `http://127.0.0.1:8000`.
+
+---
+
+## One-command local run
+
+From this repository root, run:
+
+```powershell
+./scripts/start-integrated.ps1
+```
+
+This starts the Python API and the React dashboard together.
+
+---
+
+## Vercel deployment
+
+Deploy only the `canteen-vision` frontend repo on Vercel.
+
+The Python backend in `ThaparCanteenSalesOptimizer` should be deployed on a Python-friendly host such as Render, Railway, Fly.io, or a VPS, then point `VITE_CANTEEN_API_URL` at that hosted backend.
 
 If you want to jump straight to the app files in this workspace, open [canteen-vision](../canteen-vision) and start with [src/router.tsx](../canteen-vision/src/router.tsx).
 

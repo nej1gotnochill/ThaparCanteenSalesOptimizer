@@ -121,6 +121,13 @@ def load_data(csv_path: Path = RAW_CSV_PATH) -> pd.DataFrame:
         generate_raw_data(output_path=csv_path)
 
     df = pd.read_csv(csv_path)
+    if _needs_regeneration(df):
+        logger.warning(
+            "CSV items do not match the current menu — regenerating %s.",
+            csv_path,
+        )
+        generate_raw_data(output_path=csv_path)
+        df = pd.read_csv(csv_path)
     df = _clean(df)
     logger.info("Loaded %d rows from %s", len(df), csv_path)
     return df
@@ -151,3 +158,13 @@ def _clean(df: pd.DataFrame) -> pd.DataFrame:
     # Sort chronologically — important for time-aware train/test split
     df = df.sort_values(Cols.TIMESTAMP).reset_index(drop=True)
     return df
+
+
+def _needs_regeneration(df: pd.DataFrame) -> bool:
+    """Return True when the cached CSV no longer matches the configured menu."""
+    if Cols.ITEM not in df.columns:
+        return True
+
+    current_items = set(df[Cols.ITEM].dropna().astype(str).unique())
+    expected_items = set(MENU_PRICES.keys())
+    return current_items != expected_items

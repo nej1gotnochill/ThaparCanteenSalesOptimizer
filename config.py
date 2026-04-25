@@ -40,15 +40,14 @@ SIMULATION_DAYS: int = 90
 RANDOM_SEED: int = 42
 
 MENU_PRICES: dict[str, int] = {
-    "Samosa":      20,
-    "Chai":        10,
-    "Paratha":     30,
-    "Sandwich":    50,
-    "Paneer Roll": 40,
-    "Cold Coffee": 25,
-    "Juice":       15,
-    "Patties":     30,
-    "Energy Drink":20,
+    "Maggi":       40,
+    "Sandwich":    60,
+    "Cold Coffee": 70,
+    "Tea":         15,
+    "Patties":     35,
+    "Burger":      90,
+    "Fries":       80,
+    "Momos":       70,
 }
 
 STUDENT_TYPES: list[str] = ["Undergrad", "Graduate"]
