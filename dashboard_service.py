@@ -85,6 +85,7 @@ def get_dashboard_snapshot() -> dict[str, Any]:
     analytics = _build_analytics(transaction_df, daily_df)
     inventory = _build_inventory(transaction_df)
     predictions = _build_predictions(transaction_df, daily_df, predicted_tomorrow_sales)
+    model_diagnostics = _build_model_diagnostics(daily_df, split, predictor)
     waste = _build_waste(transaction_df, daily_df, inventory["products"])
     orders = _build_orders(transaction_df)
 
@@ -117,6 +118,7 @@ def get_dashboard_snapshot() -> dict[str, Any]:
             "rmse": round(metrics.rmse, 2),
             "r2": round(metrics.r2, 4),
         },
+        "modelDiagnostics": model_diagnostics,
     }
     return snapshot
 
@@ -171,6 +173,50 @@ def get_visualization_file_path(filename: str) -> Path:
     return path
 
 
+def _build_model_diagnostics(
+    daily_df: pd.DataFrame,
+    split,
+    predictor: SalesPredictor,
+) -> dict[str, Any]:
+    y_pred = predictor.predict(split.X_test)
+    n_test = len(split.X_test)
+    test_dates = daily_df[Cols.DATE].iloc[-n_test:].reset_index(drop=True)
+
+    actual_vs_predicted = [
+        {
+            "day": row[Cols.DATE].strftime("%a"),
+            "date": row[Cols.DATE].strftime("%Y-%m-%d"),
+            "actual": round(float(actual), 2),
+            "predicted": round(float(predicted), 2),
+        }
+        for row, actual, predicted in zip(
+            daily_df.iloc[-n_test:].itertuples(index=False),
+            split.y_test.tolist(),
+            y_pred.tolist(),
+            strict=False,
+        )
+    ]
+
+    residuals = [
+        {
+            "predicted": round(float(predicted), 2),
+            "residual": round(float(actual - predicted), 2),
+        }
+        for actual, predicted in zip(split.y_test.tolist(), y_pred.tolist(), strict=False)
+    ]
+
+    feature_importances = [
+        {"name": name, "value": round(float(value), 4)}
+        for name, value in predictor.feature_importances().head(8).items()
+    ]
+
+    return {
+        "actualVsPredicted": actual_vs_predicted,
+        "residuals": residuals,
+        "featureImportances": feature_importances,
+    }
+
+
 def _build_analytics(transaction_df: pd.DataFrame, daily_df: pd.DataFrame) -> dict[str, Any]:
     recent_daily = daily_df.tail(7)
     daily_orders = (
@@ -178,17 +224,23 @@ def _build_analytics(transaction_df: pd.DataFrame, daily_df: pd.DataFrame) -> di
         .size()
         .rename("orders")
         .reset_index()
+        max_base_stock = max(profile["base_stock"] for profile in ITEM_PROFILES.values())
     )
     daily_orders[Cols.DATE] = pd.to_datetime(daily_orders[Cols.DATE])
 
     daily_sales = []
     for _, row in recent_daily.iterrows():
         day_orders = int(
-            daily_orders.loc[daily_orders[Cols.DATE] == row[Cols.DATE], "orders"].iloc[0]
-        )
-        daily_sales.append(
-            {
-                "day": row[Cols.DATE].strftime("%a"),
+            demand_ratio = predicted_tomorrow_sales / max(1.0, daily_average)
+            stock_factor = profile["base_stock"] / max_base_stock
+            category_factor = 1.08 if profile["category"] == "Meals" else 1.0 if profile["category"] == "Beverage" else 0.94
+            price_factor = 1.12 if MENU_PRICES[name] <= 35 else 1.0 if MENU_PRICES[name] <= 70 else 0.88
+            baseline = max(1.0, share * demand_ratio * (0.75 + stock_factor * 0.45) * category_factor * price_factor)
+            forecast = max(3, int(round(baseline * (4.5 + stock_factor * 3.0))))
+            recent_baseline = max(1.0, recent_units / max(1.0, len(recent_window) / len(MENU_PRICES)))
+            change = int(round(((forecast - recent_baseline) / recent_baseline) * 100))
+            stability = 1.0 - min(0.45, abs(recent_units - (total_recent_units * share)) / max(1.0, total_recent_units))
+            confidence = int(round(max(82.0, min(97.0, 82.0 + stability * 15.0 + stock_factor * 2.0))))
                 "sales": round(float(row[Cols.SALES]), 2),
                 "orders": day_orders,
             }
@@ -202,11 +254,11 @@ def _build_analytics(transaction_df: pd.DataFrame, daily_df: pd.DataFrame) -> di
     )
 
     hourly_counts = transaction_df.groupby(Cols.HOUR).size()
-    demand_scale = max(1, int(hourly_counts.max()))
+    demand_scale = max(1.0, float(hourly_counts.max()) * 1.15)
     hourly_demand = [
         {
             "hour": f"{hour if hour <= 12 else hour - 12}{'AM' if hour < 12 else 'PM'}",
-            "value": int(round((hourly_counts.get(hour, 0) / demand_scale) * 100)),
+            "value": int(round(min(100.0, (float(hourly_counts.get(hour, 0)) / demand_scale) * 100.0))),
         }
         for hour in [8, 10, 12, 13, 15, 17, 19, 21]
     ]
@@ -270,16 +322,21 @@ def _build_predictions(
     ]
     total_recent_units = float(recent_window[Cols.QUANTITY].sum()) or 1.0
     daily_average = float(daily_df[Cols.SALES].tail(7).mean()) or 1.0
+    max_base_stock = max(profile["base_stock"] for profile in ITEM_PROFILES.values())
 
     cards: list[dict[str, Any]] = []
     for name in MENU_PRICES:
         profile = ITEM_PROFILES[name]
         recent_units = float(recent_window.loc[recent_window[Cols.ITEM] == name, Cols.QUANTITY].sum())
         share = recent_units / total_recent_units
-        baseline = max(1.0, share * (predicted_tomorrow_sales / max(1.0, daily_average)))
-        forecast = int(round(max(1.0, baseline * 8)))
-        change = int(round(((forecast - max(1.0, recent_units / 2)) / max(1.0, recent_units / 2)) * 100))
-        stability = 1.0 - min(0.45, abs(recent_units - (total_recent_units * 0.12)) / max(1.0, total_recent_units))
+        demand_ratio = predicted_tomorrow_sales / max(1.0, daily_average)
+        stock_factor = profile["base_stock"] / max_base_stock
+        category_factor = 1.08 if profile["category"] == "Meals" else 1.0 if profile["category"] == "Beverage" else 0.94
+        baseline = max(1.0, share * demand_ratio * (0.75 + stock_factor * 0.45) * category_factor)
+        forecast = max(1, int(round(baseline * (4.5 + stock_factor * 3.0))))
+        recent_baseline = max(1.0, recent_units / max(1.0, len(recent_window) / len(MENU_PRICES)))
+        change = int(round(((forecast - recent_baseline) / recent_baseline) * 100))
+        stability = 1.0 - min(0.45, abs(recent_units - (total_recent_units * share)) / max(1.0, total_recent_units))
         confidence = int(round(max(82.0, min(97.0, 82.0 + stability * 15.0))))
         cards.append(
             {
