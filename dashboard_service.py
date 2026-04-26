@@ -224,23 +224,17 @@ def _build_analytics(transaction_df: pd.DataFrame, daily_df: pd.DataFrame) -> di
         .size()
         .rename("orders")
         .reset_index()
-        max_base_stock = max(profile["base_stock"] for profile in ITEM_PROFILES.values())
     )
     daily_orders[Cols.DATE] = pd.to_datetime(daily_orders[Cols.DATE])
 
     daily_sales = []
     for _, row in recent_daily.iterrows():
         day_orders = int(
-            demand_ratio = predicted_tomorrow_sales / max(1.0, daily_average)
-            stock_factor = profile["base_stock"] / max_base_stock
-            category_factor = 1.08 if profile["category"] == "Meals" else 1.0 if profile["category"] == "Beverage" else 0.94
-            price_factor = 1.12 if MENU_PRICES[name] <= 35 else 1.0 if MENU_PRICES[name] <= 70 else 0.88
-            baseline = max(1.0, share * demand_ratio * (0.75 + stock_factor * 0.45) * category_factor * price_factor)
-            forecast = max(3, int(round(baseline * (4.5 + stock_factor * 3.0))))
-            recent_baseline = max(1.0, recent_units / max(1.0, len(recent_window) / len(MENU_PRICES)))
-            change = int(round(((forecast - recent_baseline) / recent_baseline) * 100))
-            stability = 1.0 - min(0.45, abs(recent_units - (total_recent_units * share)) / max(1.0, total_recent_units))
-            confidence = int(round(max(82.0, min(97.0, 82.0 + stability * 15.0 + stock_factor * 2.0))))
+            daily_orders.loc[daily_orders[Cols.DATE] == row[Cols.DATE], "orders"].sum()
+        )
+        daily_sales.append(
+            {
+                "day": row[Cols.DATE].strftime("%a"),
                 "sales": round(float(row[Cols.SALES]), 2),
                 "orders": day_orders,
             }
